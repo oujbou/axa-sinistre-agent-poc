@@ -1,0 +1,33 @@
+# Core dependencies
+langgraph==0.2.14
+langchain==0.2.16
+langchain-openai==0.1.25
+langchain-community==0.2.16
+
+# OpenAI API
+openai==1.51.0
+
+# Document processing
+pymupdf==1.23.26
+pytesseract==0.3.10
+Pillow==10.4.0
+
+# Web framework
+streamlit==1.39.0
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Data processing
+pandas==2.2.3
+numpy==1.26.4
+pydantic==2.9.2
+
+# Utilities
+python-dotenv==1.0.1
+loguru==0.7.2
+typing-extensions==4.12.2
+
+# Development tools
+pytest==8.3.3
+black==24.8.0
+isort==5.13.2
