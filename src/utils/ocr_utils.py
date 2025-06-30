@@ -10,11 +10,15 @@ from typing import Tuple, Optional, Dict, Any
 from pathlib import Path
 from loguru import logger
 import time
-import cv2
-import numpy as np
 
-from config.settings import settings
-
+try:
+    from config.settings import settings
+except ImportError:
+    import sys
+    project_root = Path(__file__).parent.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from config.settings import settings
 
 class OCRProcessor:
     """

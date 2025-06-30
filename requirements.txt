@@ -5,7 +5,7 @@ langchain-openai==0.1.25
 langchain-community==0.2.16
 
 # OpenAI API
-openai==1.51.0
+openai==1.50.2
 
 # Document processing
 pymupdf==1.23.26
