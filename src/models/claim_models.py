@@ -55,6 +55,22 @@ class ClaimClassification(BaseModel):
     necessite_enquete: bool = Field(..., description="Si une enquête détaillée est nécessaire")
     score_urgence: int = Field(..., ge=1, le=10, description="Score d'urgence (1=faible, 10=critique)")
 
+    methode_classification: str = Field(..., description="Méthode utilisée: rules, llm, hybride")
+    temps_traitement: float = Field(..., description="Temps de traitement en secondes")
+    raisonnement_llm: Optional[str] = Field(None, description="Explication du raisonnement IA")
+
+    # Business-specific flags
+    necessite_expertise: bool = Field(default=False, description="Si expertise technique requise")
+    potentiel_fraude: bool = Field(default=False, description="Indicateurs de fraude détectés")
+    urgence_medicale: bool = Field(default=False, description="Urgence médicale identifiée")
+
+
+    # Workflow information
+    niveau_autorisation: str = Field(default="agent", description="Niveau d'autorisation requis")
+    delai_traitement_estime: str = Field(default="1-2sem", description="Délai estimé de traitement")
+    actions_immediates: List[str] = Field(default_factory=list, description="Actions à prendre immédiatement")
+
+
 class ClaimReport(BaseModel):
     """Final claim processing report"""
     id_sinistre: str = Field(..., description="Identifiant unique du sinistre")
