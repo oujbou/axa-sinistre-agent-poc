@@ -1,7 +1,7 @@
 """
 LangGraph workflow demonstrating conditional routing and multi-agent orchestration
 """
-from typing import Dict, Any, List, Literal
+from typing import Dict, Any, Literal
 import time
 from datetime import datetime
 from loguru import logger
@@ -81,16 +81,16 @@ class SmartAXAWorkflow:
         self.report_agent = ReportAgent(llm_client)
 
         # Thresholds for routing decisions
-        self.quality_threshold = 0.7
+        self.quality_threshold = 0.6
         self.high_confidence_threshold = 0.85
         self.fraud_risk_threshold = 0.6
 
         # Build workflow
-        self.workflow = self._build_smart_workflow()
+        self.workflow = self._build_workflow()
 
         logger.info("Workflow initialized with conditional routing")
 
-    def _build_smart_workflow(self) -> StateGraph:
+    def _build_workflow(self) -> StateGraph:
         """Build workflow with conditional routing"""
 
         workflow = StateGraph(dict)
@@ -101,7 +101,7 @@ class SmartAXAWorkflow:
         workflow.add_node("report", self._report_node)
 
         # Add control nodes
-        workflow.add_node("quality_check", self._quality_check_node)
+        # workflow.add_node("quality_check", self._quality_check_node)
         workflow.add_node("human_review", self._human_review_node)
         workflow.add_node("fast_track", self._fast_track_node)
         workflow.add_node("detailed_analysis", self._detailed_analysis_node)
@@ -114,9 +114,11 @@ class SmartAXAWorkflow:
             "ocr",
             self._route_after_ocr,
             {
-                "good_quality": "classification",
-                "poor_quality": "human_review",
-                "needs_retry": "ocr"  # Could loop back
+            #     "good_quality": "classification",
+            #     "poor_quality": "human_review",
+            #     "needs_retry": "ocr"  # Could loop back
+                "continue":"classification",
+                "human_review": "human_review"
             }
         )
 
@@ -124,23 +126,27 @@ class SmartAXAWorkflow:
             "classification",
             self._route_after_classification,
             {
-                "standard_case": "report",
-                "high_confidence": "fast_track",
-                "complex_case": "detailed_analysis",
-                "fraud_risk": "human_review",
-                "needs_review": "quality_check"
+                "report": "report",
+                # "standard_case": "report",
+                # "high_confidence": "fast_track",
+                "fast_track": "fast_track",
+                "detailed_analysis": "detailed_analysis",
+                # "complex_case": "detailed_analysis",
+                # "fraud_risk": "human_review",
+                # "needs_review": "quality_check"
+                "human_review": "human_review"
             }
         )
 
-        workflow.add_conditional_edges(
-            "quality_check",
-            self._route_after_quality,
-            {
-                "approved": "report",
-                "needs_human": "human_review",
-                "retry_classification": "classification"
-            }
-        )
+        # workflow.add_conditional_edges(
+        #     "quality_check",
+        #     self._route_after_quality,
+        #     {
+        #         "approved": "report",
+        #         "needs_human": "human_review",
+        #         "retry_classification": "classification"
+        #     }
+        # )
 
         # Terminal edges
         workflow.add_edge("fast_track", END)
@@ -153,8 +159,8 @@ class SmartAXAWorkflow:
     def _ocr_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """OCR processing with quality assessment"""
         logger.info("🔍 OCR Node: Processing document")
-        step_start = time.time()
-
+        # step_start = time.time()
+        start_time = time.time()
         workflow_state = SmartWorkflowState.from_dict(state)
         workflow_state.current_step = "ocr"
 
@@ -163,52 +169,77 @@ class SmartAXAWorkflow:
             ocr_result = self.ocr_agent.execute_react_cycle(workflow_state.input_data)
 
             if ocr_result.status.value == "completed" and ocr_result.output_data.get("succes"):
-                workflow_state.results["ocr"] = ocr_result.output_data
-
-                # Extract confidence for routing
-                ocr_confidence = ocr_result.output_data.get("resultat_ocr", {}).get("score_confiance", 0)
-                workflow_state.confidence_scores["ocr"] = ocr_confidence
-
-                logger.info(f"✅ OCR completed - confidence: {ocr_confidence:.2f}")
+                # workflow_state.results["ocr"] = ocr_result.output_data
+                #
+                # # Extract confidence for routing
+                # ocr_confidence = ocr_result.output_data.get("resultat_ocr", {}).get("score_confiance", 0)
+                # workflow_state.confidence_scores["ocr"] = ocr_confidence
+                #
+                # logger.info(f"✅ OCR completed - confidence: {ocr_confidence:.2f}")
+                state["ocr_result"] = ocr_result.output_data
+                state["ocr_confidence"] = ocr_result.output_data.get("resultat_ocr", {}).get("score_confiance", 0.5)
+                state["success"] = True
             else:
-                workflow_state.errors.append(f"OCR failed: {ocr_result.output_data.get('erreur', 'Unknown')}")
-                workflow_state.confidence_scores["ocr"] = 0.0
+                # workflow_state.errors.append(f"OCR failed: {ocr_result.output_data.get('erreur', 'Unknown')}")
+                # workflow_state.confidence_scores["ocr"] = 0.0
+                state["success"] = False
+                state["errors"] = [f"OCR failed: {ocr_result.output_data.get('erreur', 'Unknown')}"]
 
-            workflow_state.step_times["ocr"] = time.time() - step_start
-            return workflow_state.to_dict()
+            # workflow_state.step_times["ocr"] = time.time() - step_start
+            # return workflow_state.to_dict()
 
         except Exception as e:
             logger.error(f"OCR node error: {e}")
-            workflow_state.errors.append(f"OCR error: {str(e)}")
-            return workflow_state.to_dict()
+            # workflow_state.errors.append(f"OCR error: {str(e)}")
+            # return workflow_state.to_dict()
+            state["success"] = False
+            state["errors"] = [f"OCR error: {str(e)}"]
+
+        state["step_times"] = state.get("step_times", {})
+        state["step_times"]["ocr"] = time.time() - start_time
+        state["current_step"] = "ocr"
+
+        return state
 
     def _route_after_ocr(self, state: Dict[str, Any]) -> Literal["good_quality", "poor_quality", "needs_retry"]:
         """ROUTING LOGIC"""
 
-        workflow_state = SmartWorkflowState.from_dict(state)
-        ocr_confidence = workflow_state.confidence_scores.get("ocr", 0)
+        # workflow_state = SmartWorkflowState.from_dict(state)
+        # ocr_confidence = workflow_state.confidence_scores.get("ocr", 0)
+        #
+        # # Decision logic based on OCR quality
+        # if ocr_confidence >= self.high_confidence_threshold:
+        #     decision = "good_quality"
+        #     reason = f"High OCR confidence ({ocr_confidence:.2f})"
+        # elif ocr_confidence >= self.quality_threshold:
+        #     decision = "good_quality"
+        #     reason = f"Acceptable OCR confidence ({ocr_confidence:.2f})"
+        # else:
+        #     decision = "poor_quality"
+        #     reason = f"Low OCR confidence ({ocr_confidence:.2f}) - human review needed"
+        #
+        # # Log routing decision
+        # workflow_state.routing_decisions.append({
+        #     "step": "after_ocr",
+        #     "decision": decision,
+        #     "reason": reason,
+        #     "confidence": ocr_confidence
+        # })
+        #
+        # logger.info(f"🔀 OCR Routing: {decision} - {reason}")
+        # return decision
+        if not state.get("success", False):
+            logger.info("🔀 OCR failed -> human_review")
+            return "human_review"
 
-        # Decision logic based on OCR quality
-        if ocr_confidence >= self.high_confidence_threshold:
-            decision = "good_quality"
-            reason = f"High OCR confidence ({ocr_confidence:.2f})"
-        elif ocr_confidence >= self.quality_threshold:
-            decision = "good_quality"
-            reason = f"Acceptable OCR confidence ({ocr_confidence:.2f})"
+        ocr_confidence = state.get("ocr_confidence", 0)
+
+        if ocr_confidence >= self.quality_threshold:
+            logger.info(f"🔀 OCR confidence {ocr_confidence:.2f} -> continue")
+            return "continue"
         else:
-            decision = "poor_quality"
-            reason = f"Low OCR confidence ({ocr_confidence:.2f}) - human review needed"
-
-        # Log routing decision
-        workflow_state.routing_decisions.append({
-            "step": "after_ocr",
-            "decision": decision,
-            "reason": reason,
-            "confidence": ocr_confidence
-        })
-
-        logger.info(f"🔀 OCR Routing: {decision} - {reason}")
-        return decision
+            logger.info(f"🔀 OCR confidence {ocr_confidence:.2f} too low -> human_review")
+            return "human_review"
 
     def _classification_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Classification with business intelligence"""
