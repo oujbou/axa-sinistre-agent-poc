@@ -190,38 +190,83 @@ Fournissez une stratégie de classification détaillée et justifiée.
     def _llm_semantic_classification(self, texte: str, rule_result, reasoning: str) -> Dict[str, Any]:
         """Perform LLM-based semantic classification"""
 
+#         prompt = f"""
+# En tant qu'expert classification sinistres AXA France, analysez ce texte et fournissez une classification précise :
+#
+# TEXTE À CLASSIFIER:
+# "{texte}"
+#
+# ANALYSE PRÉLIMINAIRE PAR RÈGLES:
+# - Classification suggérée: {rule_result.best_match.value if rule_result.best_match else 'Aucune'}
+# - Confiance règles: {rule_result.confidence:.2f}
+# - Mots-clés détectés: {rule_result.keywords_found}
+#
+# STRATÉGIE DÉTERMINÉE:
+# {reasoning[:300]}
+#
+# MISSION - Répondez uniquement en JSON valide:
+# {{
+#     "type_sinistre": "un des: accident_auto, degats_habitation, vol, incendie, degat_des_eaux, sante, voyage, responsabilite_civile, inconnu",
+#     "severite": "un des: faible, moderee, elevee, critique",
+#     "score_confiance": "0.0 à 1.0",
+#     "justification": "explication courte de votre classification",
+#     "montant_estime": "montant en euros ou null si impossible à estimer",
+#     "flags": {{
+#         "necessite_enquete": "true/false - investigation approfondie requise",
+#         "potentiel_fraude": "true/false - éléments suspects détectés",
+#         "urgence_medicale": "true/false - soins médicaux urgents",
+#         "necessite_expertise": "true/false - expert technique requis"
+#     }},
+#     "score_urgence": "entier de 1 (routine) à 10 (critique)",
+#     "actions_immediates": ["liste", "des", "actions", "à", "prendre"],
+#     "mots_cles_decisifs": ["mots", "qui", "ont", "guidé", "la", "décision"]
+# }}
+# """
+
         prompt = f"""
-En tant qu'expert classification sinistres AXA France, analysez ce texte et fournissez une classification précise :
+        En tant qu'expert classification sinistres AXA France, analysez ce texte et fournissez une classification précise.
 
-TEXTE À CLASSIFIER:
-"{texte}"
+        TEXTE À CLASSIFIER:
+        "{texte}"
 
-ANALYSE PRÉLIMINAIRE PAR RÈGLES:
-- Classification suggérée: {rule_result.best_match.value if rule_result.best_match else 'Aucune'}
-- Confiance règles: {rule_result.confidence:.2f}
-- Mots-clés détectés: {rule_result.keywords_found}
+        TYPES VALIDES uniquement:
+        - accident_auto
+        - degats_habitation  
+        - vol
+        - incendie
+        - degat_des_eaux
+        - sante
+        - voyage
+        - responsabilite_civile
+        - catastrophe_naturelle
+        - inconnu
 
-STRATÉGIE DÉTERMINÉE:
-{reasoning[:300]}
+        SÉVÉRITÉS VALIDES uniquement:
+        - faible
+        - moderee
+        - elevee
+        - critique
 
-MISSION - Répondez uniquement en JSON valide:
-{{
-    "type_sinistre": "un des: accident_auto, degats_habitation, vol, incendie, degat_des_eaux, sante, voyage, responsabilite_civile, inconnu",
-    "severite": "un des: faible, moderee, elevee, critique", 
-    "score_confiance": "0.0 à 1.0",
-    "justification": "explication courte de votre classification",
-    "montant_estime": "montant en euros ou null si impossible à estimer",
-    "flags": {{
-        "necessite_enquete": "true/false - investigation approfondie requise",
-        "potentiel_fraude": "true/false - éléments suspects détectés",
-        "urgence_medicale": "true/false - soins médicaux urgents",
-        "necessite_expertise": "true/false - expert technique requis"
-    }},
-    "score_urgence": "entier de 1 (routine) à 10 (critique)",
-    "actions_immediates": ["liste", "des", "actions", "à", "prendre"],
-    "mots_cles_decisifs": ["mots", "qui", "ont", "guidé", "la", "décision"]
-}}
-"""
+        EXEMPLE DE RÉPONSE JSON (respectez exactement ce format):
+        {{
+            "type_sinistre": "accident_auto",
+            "severite": "moderee", 
+            "score_confiance": 0.85,
+            "justification": "Rayure de véhicule dans un parking",
+            "montant_estime": 800,
+            "flags": {{
+                "necessite_enquete": false,
+                "potentiel_fraude": false,
+                "urgence_medicale": false,
+                "necessite_expertise": false
+            }},
+            "score_urgence": 4,
+            "actions_immediates": ["Contacter garage", "Devis réparation"],
+            "mots_cles_decisifs": ["rayure", "parking", "véhicule"]
+        }}
+
+        IMPORTANT: Répondez UNIQUEMENT avec du JSON valide, rien d'autre.
+        """
 
         try:
             response = self.llm_client.chat.completions.create(

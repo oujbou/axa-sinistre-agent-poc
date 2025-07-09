@@ -27,6 +27,7 @@ class ClaimType(Enum):
     VOL = "vol"
     INCENDIE = "incendie"
     DEGAT_DES_EAUX = "degat_des_eaux"
+    CATASTROPHE_NATURELLE = "catastrophe_naturelle"
     INCONNU = "inconnu"
 
 class Severity(Enum):

@@ -262,49 +262,210 @@ Fournissez une stratégie claire pour une extraction de texte optimale.
 
         return text.strip()
 
+#     def _extract_key_information(self, text: str) -> Dict[str, Any]:
+#         """Extract key information using LLM"""
+#         if not text.strip():
+#             return {}
+#
+# #         extraction_prompt = f"""
+# # Extrayez les informations clés de ce texte de document d'assurance :
+# #
+# # Texte : {text[:2000]}...
+# #
+# # Extrayez et structurez :
+# # 1. Dates (toutes les dates mentionnées)
+# # 2. Noms (personnes, entreprises)
+# # 3. Adresses
+# # 4. Informations véhicule (si applicable)
+# # 5. Montants/Numéros
+# # 6. Numéros de police/contrat
+# # 7. Numéros de téléphone
+# # 8. Adresses email
+# #
+# # Retournez sous forme de données structurées en format JSON.
+# # """
+#             extraction_prompt = f"""
+# Extrayez les informations clés de ce texte de document d'assurance.
+#
+# Texte : {text[:2000]}...
+#
+# Répondez UNIQUEMENT en JSON valide avec cette structure:
+# {{
+#     "dates": ["liste des dates trouvées"],
+#     "noms": ["noms de personnes/entreprises"],
+#     "adresses": ["adresses complètes"],
+#     "vehicules": ["informations véhicules"],
+#     "montants": ["montants en euros"],
+#     "contrats": ["numéros police/contrat"],
+#     "telephones": ["numéros de téléphone"],
+#     "emails": ["adresses email"]
+# }}
+#
+# Si aucune information n'est trouvée pour une catégorie, utilisez une liste vide [].
+# IMPORTANT: Répondez UNIQUEMENT avec du JSON valide, rien d'autre.
+# """
+#
+#         try:
+#             response = self.llm_client.chat.completions.create(
+#                 model="gpt-4o-mini",
+#                 messages=[
+#                     {"role": "system",
+#                      "content": "Vous êtes un expert en extraction d'informations structurées à partir de documents d'assurance. Retournez uniquement du JSON valide."},
+#                     {"role": "user", "content": extraction_prompt}
+#                 ],
+#                 max_tokens=1000,
+#                 temperature=0.1
+#             )
+#
+#             # Parse JSON response
+#             import json
+#         #     key_info = json.loads(response.choices[0].message.content)
+#         #     return key_info
+#         #
+#         # except Exception as e:
+#         #     logger.warning(f"Error extracting key information: {str(e)}")
+#         #     return {"erreur": "Impossible d'extraire les informations structurées"}
+#             raw_response = response.choices[0].message.content.strip()
+#             if not raw_response:
+#                 logger.warning("LLM returned empty response")
+#                 return {"erreur": "Réponse LLM vide"}
+#
+#             # Supprimer les markdown si présents
+#             if raw_response.startswith("```json"):
+#                 raw_response = raw_response.replace("```json", "").replace("```", "").strip()
+#             elif raw_response.startswith("```"):
+#                 raw_response = raw_response.replace("```", "").strip()
+#
+#             # Tentative de parsing JSON
+#             try:
+#                 key_info = json.loads(raw_response)
+#                 logger.debug(f"Successfully extracted {len(key_info)} info categories")
+#                 return key_info
+#
+#             except json.JSONDecodeError as json_err:
+#                 logger.warning(f"JSON parsing failed: {json_err}")
+#                 logger.debug(f"Raw response was: {raw_response[:200]}...")
+#
+#                 # Fallback: extraction basique par regex
+#                 return self._extract_info_fallback(text)
+#
+#         except Exception as e:
+#             logger.warning(f"Error extracting key information: {str(e)}")
+#             return self._extract_info_fallback(text)
+
     def _extract_key_information(self, text: str) -> Dict[str, Any]:
         """Extract key information using LLM"""
         if not text.strip():
             return {}
 
         extraction_prompt = f"""
-Extrayez les informations clés de ce texte de document d'assurance :
+    Extrayez les informations clés de ce texte de document d'assurance.
 
-Texte : {text[:2000]}...
+    Texte : {text[:2000]}...
 
-Extrayez et structurez :
-1. Dates (toutes les dates mentionnées)
-2. Noms (personnes, entreprises)
-3. Adresses
-4. Informations véhicule (si applicable)
-5. Montants/Numéros
-6. Numéros de police/contrat
-7. Numéros de téléphone
-8. Adresses email
+    Répondez UNIQUEMENT en JSON valide avec cette structure:
+    {{
+        "dates": ["liste des dates trouvées"],
+        "noms": ["noms de personnes/entreprises"],
+        "adresses": ["adresses complètes"],
+        "vehicules": ["informations véhicules"],
+        "montants": ["montants en euros"],
+        "contrats": ["numéros police/contrat"],
+        "telephones": ["numéros de téléphone"],
+        "emails": ["adresses email"]
+    }}
 
-Retournez sous forme de données structurées en format JSON.
-"""
+    Si aucune information n'est trouvée pour une catégorie, utilisez une liste vide [].
+    IMPORTANT: Répondez UNIQUEMENT avec du JSON valide, rien d'autre.
+    """
 
         try:
             response = self.llm_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system",
-                     "content": "Vous êtes un expert en extraction d'informations structurées à partir de documents d'assurance. Retournez uniquement du JSON valide."},
+                     "content": "Vous êtes un expert en extraction d'informations. Répondez UNIQUEMENT en JSON valide, aucun autre texte."},
                     {"role": "user", "content": extraction_prompt}
                 ],
-                max_tokens=1000,
+                max_tokens=800,
                 temperature=0.1
             )
 
-            # Parse JSON response
-            import json
-            key_info = json.loads(response.choices[0].message.content)
-            return key_info
+            raw_response = response.choices[0].message.content.strip()
+
+            # Nettoyage de la réponse
+            if not raw_response:
+                logger.warning("LLM returned empty response")
+                return self._extract_info_fallback(text)
+
+            # Supprimer les markdown si présents
+            if raw_response.startswith("```json"):
+                raw_response = raw_response.replace("```json", "").replace("```", "").strip()
+            elif raw_response.startswith("```"):
+                raw_response = raw_response.replace("```", "").strip()
+
+            # Tentative de parsing JSON
+            try:
+                import json
+                key_info = json.loads(raw_response)
+                logger.debug(f"Successfully extracted {len(key_info)} info categories")
+                return key_info
+
+            except json.JSONDecodeError as json_err:
+                logger.warning(f"JSON parsing failed: {json_err}")
+                logger.debug(f"Raw response was: {raw_response[:200]}...")
+
+                # Fallback: extraction basique par regex
+                return self._extract_info_fallback(text)
 
         except Exception as e:
             logger.warning(f"Error extracting key information: {str(e)}")
-            return {"erreur": "Impossible d'extraire les informations structurées"}
+            return self._extract_info_fallback(text)
+    def _extract_info_fallback(self, text: str) -> Dict[str, Any]:
+        """Fallback extraction using regex patterns"""
+        import re
+
+        info = {
+            "dates": [],
+            "noms": [],
+            "adresses": [],
+            "vehicules": [],
+            "montants": [],
+            "contrats": [],
+            "telephones": [],
+            "emails": []
+        }
+
+        try:
+            # Extraction des montants (€, euros)
+            montants = re.findall(r'(\d+(?:[\s,]\d{3})*(?:[.,]\d{2})?)\s*(?:€|euros?)', text, re.IGNORECASE)
+            info["montants"] = montants
+
+            # Extraction des plaques d'immatriculation
+            plaques = re.findall(r'[A-Z]{2}-\d{3}-[A-Z]{2}', text)
+            if plaques:
+                info["vehicules"] = plaques
+
+            # Extraction des dates (format français)
+            dates = re.findall(r'\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}', text)
+            info["dates"] = dates
+
+            # Extraction des numéros de téléphone
+            telephones = re.findall(r'(?:0[1-9])(?:[-.\s]?\d{2}){4}', text)
+            info["telephones"] = telephones
+
+            # Extraction des emails
+            emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+            info["emails"] = emails
+
+            logger.debug(f"Fallback extraction completed: {sum(len(v) for v in info.values())} items found")
+
+        except Exception as e:
+            logger.error(f"Even fallback extraction failed: {e}")
+            info["erreur"] = f"Extraction impossible: {str(e)}"
+
+        return info
+
 
     def _calculate_text_stats(self, text: str) -> Dict[str, Any]:
         """Calculate text statistics"""
